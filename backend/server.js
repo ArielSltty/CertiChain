@@ -1,9 +1,9 @@
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const PinataSDK = require("@pinata/sdk");
 const dotenv = require("dotenv");
-const path = require("path");
+const axios = require("axios");
+const FormData = require("form-data");
 
 // ============ CONFIG ============
 dotenv.config();
@@ -12,47 +12,36 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============ MIDDLEWARE ============
-
-// CORS - izinkan frontend akses
 app.use(cors({
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"], // Vite default
+  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
   methods: ["GET", "POST"],
   credentials: true,
 }));
 
 app.use(express.json());
 
-// Multer - handle file upload di memory
+// Multer - simpan file di memory
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // Max 10MB
+    fileSize: 10 * 1024 * 1024, // 10MB
   },
-  fileFilter: (req, file, cb) => {
-    // Hanya izinkan PDF
-    if (file.mimetype === "application/pdf") {
-      cb(null, true);
-    } else {
-      cb(new Error("Hanya file PDF yang diizinkan!"), false);
-    }
-  },
-});
-
-// ============ PINATA SETUP ============
-const pinata = new PinataSDK({
-  pinataJwt: process.env.PINATA_JWT,
-  pinataGateway: process.env.PINATA_GATEWAY || "gateway.pinata.cloud",
 });
 
 // ============ ENDPOINTS ============
 
-/**
- * POST /api/upload
- * Upload file PDF ke IPFS via Pinata
- */
+// Health check
+app.get("/api/health", (req, res) => {
+  return res.status(200).json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Upload file ke Pinata
 app.post("/api/upload", upload.single("file"), async (req, res) => {
   try {
-    // Validasi file ada
+    // Cek apakah file ada
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -60,37 +49,64 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Ambil metadata opsional dari request body
-    const { studentName, courseName } = req.body;
+    console.log("📤 Received file:", req.file.originalname);
+    console.log("📏 File size:", (req.file.size / 1024).toFixed(2), "KB");
 
-    // Upload ke Pinata
-    const uploadResult = await pinata.upload.file(req.file.buffer, {
-      pinataMetadata: {
-        name: req.file.originalname,
-        keyvalues: {
-          studentName: studentName || "",
-          courseName: courseName || "",
-          uploadedBy: "certificate-dapp",
-          timestamp: new Date().toISOString(),
-        },
-      },
-      pinataOptions: {
-        cidVersion: 1,
-      },
+    // Siapkan FormData untuk Pinata
+    const formData = new FormData();
+    formData.append("file", req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
     });
 
-    console.log("✅ File uploaded to IPFS:", uploadResult.IpfsHash);
+    // Metadata opsional
+    const metadata = JSON.stringify({
+      name: req.file.originalname,
+      keyvalues: {
+        studentName: req.body.studentName || "",
+        courseName: req.body.courseName || "",
+        uploadedBy: "certificate-dapp",
+        timestamp: new Date().toISOString(),
+      },
+    });
+    formData.append("pinataMetadata", metadata);
 
-    // Return sukses
+    // Options
+    const options = JSON.stringify({
+      cidVersion: 1,
+    });
+    formData.append("pinataOptions", options);
+
+    // Upload ke Pinata API
+    const response = await axios.post(
+      "https://api.pinata.cloud/pinning/pinFileToIPFS",
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PINATA_JWT}`,
+          ...formData.getHeaders(),
+        },
+        maxBodyLength: Infinity,
+      }
+    );
+
+    const cid = response.data.IpfsHash;
+    console.log("✅ Uploaded to IPFS:", cid);
+
     return res.status(200).json({
       success: true,
-      cid: uploadResult.IpfsHash,
+      cid: cid,
       fileName: req.file.originalname,
       fileSize: req.file.size,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("❌ Upload error:", error);
+    console.error("❌ Upload error:", error.message);
+
+    // Log detail error dari Pinata
+    if (error.response) {
+      console.error("Pinata response:", error.response.data);
+    }
 
     return res.status(500).json({
       success: false,
@@ -100,46 +116,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-/**
- * GET /api/health
- * Cek status server
- */
-app.get("/api/health", (req, res) => {
-  return res.status(200).json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
-});
-
 // ============ ERROR HANDLING ============
-
-// Handle Multer errors
-app.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({
-        success: false,
-        error: "File terlalu besar. Maksimal 10MB.",
-      });
-    }
-    return res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-  }
-
-  if (error.message === "Hanya file PDF yang diizinkan!") {
-    return res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-  }
-
-  next(error);
-});
-
-// Handle general errors
 app.use((error, req, res, next) => {
   console.error("❌ Server error:", error);
   return res.status(500).json({

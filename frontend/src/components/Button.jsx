@@ -18,7 +18,7 @@ const Button = ({
       className={`
         font-medium py-2 px-4 rounded-lg border transition-all duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
-        ${variants[variant]}
+        ${variants[variant] || variants.primary}
         ${className}
       `}
       disabled={disabled || loading}
@@ -26,7 +26,7 @@ const Button = ({
     >
       {loading ? (
         <span className="flex items-center gap-2">
-          <LoadingSpinner size="sm" />
+          <span className="w-4 h-4 border-2 border-slate-400 border-t-white rounded-full animate-spin" />
           Loading...
         </span>
       ) : children}

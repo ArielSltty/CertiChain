@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ethers } from 'ethers'
 import toast from 'react-hot-toast'
 import { Upload, FileText, CheckCircle, XCircle, ExternalLink } from 'lucide-react'
 import useMetaMask from '../hooks/useMetaMask'
 import useRoleCheck from '../hooks/useRoleCheck'
-import { getContract, generateCertId, getReadOnlyContract } from '../utils/blockchain'
+import { getContract, getReadOnlyContract } from '../utils/blockchain'
 import { uploadFileToBackend } from '../utils/ipfs'
 import { getIPFSUrl } from '../utils/gateway'
 import Card from '../components/Card'
 import Button from '../components/Button'
 import Input from '../components/Input'
-import LoadingSpinner from '../components/LoadingSpinner'
 
 const Issue = () => {
   // ============ WALLET STATE ============
@@ -25,7 +24,7 @@ const Issue = () => {
 
   // ============ UI STATE ============
   const [loading, setLoading] = useState(false)
-  const [step, setStep] = useState('idle') // idle | uploading | issuing | success | error
+  const [step, setStep] = useState('idle') // idle | uploading | issuing | success
   const [txHash, setTxHash] = useState('')
   const [ipfsCid, setIpfsCid] = useState('')
   const [errors, setErrors] = useState({})
@@ -36,18 +35,14 @@ const Issue = () => {
   const validateForm = async () => {
     const newErrors = {}
 
-    // Validasi Certificate ID
     if (!certId.trim()) {
       newErrors.certId = 'Certificate ID wajib diisi.'
     } else if (certId.length < 3) {
       newErrors.certId = 'Certificate ID minimal 3 karakter.'
     } else {
-      // Cek apakah certId sudah ada di blockchain
       try {
         const contract = getReadOnlyContract()
-        const exists = await contract.certificateExists(
-          ethers.encodeBytes32String(certId)
-        )
+        const exists = await contract.certificateExists(ethers.encodeBytes32String(certId))
         if (exists) {
           newErrors.certId = 'Certificate ID sudah digunakan. Gunakan ID lain.'
         }
@@ -56,17 +51,14 @@ const Issue = () => {
       }
     }
 
-    // Validasi Student Name
     if (!studentName.trim()) {
       newErrors.studentName = 'Nama mahasiswa wajib diisi.'
     }
 
-    // Validasi Course Name
     if (!courseName.trim()) {
       newErrors.courseName = 'Nama program studi wajib diisi.'
     }
 
-    // Validasi File
     if (!file) {
       newErrors.file = 'File sertifikat wajib diupload.'
     } else {
@@ -83,18 +75,10 @@ const Issue = () => {
     return Object.keys(newErrors).length === 0
   }
 
-  // ============ HANDLE FILE CHANGE ============
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0]
-    if (selectedFile) {
-      setFile(selectedFile)
-      setErrors(prev => ({ ...prev, file: undefined }))
-    }
-  }
-
   // ============ ISSUE CERTIFICATE ============
-  const handleIssue = async () => {
-    // Cek koneksi
+  const handleIssue = async (e) => {
+    e?.preventDefault()
+
     if (!isConnected) {
       toast.error('Silakan connect wallet terlebih dahulu.')
       return
@@ -105,7 +89,6 @@ const Issue = () => {
       return
     }
 
-    // Validasi form
     const isValid = await validateForm()
     if (!isValid) {
       toast.error('Mohon periksa kembali form yang diisi.')
@@ -113,74 +96,48 @@ const Issue = () => {
     }
 
     setLoading(true)
-    setStep('uploading')
 
     try {
-      // Step 1: Upload file ke backend
-      const uploadPromise = uploadFileToBackend(file, {
+      // Step 1: Upload ke IPFS
+      setStep('uploading')
+      toast.loading('Mengupload file ke IPFS...', { id: 'upload' })
+
+      const { cid } = await uploadFileToBackend(file, {
         studentName,
         courseName,
       })
 
-      toast.promise(uploadPromise, {
-        loading: 'Mengupload file ke IPFS...',
-        success: 'File berhasil diupload!',
-        error: 'Gagal upload file.',
-      })
-
-      const uploadResult = await uploadPromise
-      const cid = uploadResult.cid
       setIpfsCid(cid)
+      toast.success('File berhasil diupload ke IPFS!', { id: 'upload' })
 
-      // Step 2: Issue certificate via smart contract
+      // Step 2: Issue ke Blockchain
       setStep('issuing')
+      toast.loading('Menunggu konfirmasi transaksi...', { id: 'issue' })
 
       const contract = await getContract(provider)
-      const certIdBytes32 = ethers.encodeBytes32String(certId)
-
-      const txPromise = contract.issueCertificate(
-        certIdBytes32,
-        studentName,
-        courseName,
-        cid
-      )
-
-      toast.promise(txPromise, {
-        loading: 'Menunggu konfirmasi transaksi...',
-        success: 'Transaksi dikonfirmasi!',
-        error: 'Transaksi gagal.',
-      })
-
-      const tx = await txPromise
+      const certIdBytes = ethers.encodeBytes32String(certId)
+      const tx = await contract.issueCertificate(certIdBytes, studentName, courseName, cid)
       const receipt = await tx.wait()
-      
+
       setTxHash(receipt.hash)
       setStep('success')
+      toast.success('Sertifikat berhasil diterbitkan! 🎉', { id: 'issue' })
 
-      toast.success('Sertifikat berhasil diterbitkan! 🎉')
+    } catch (err) {
+      console.error('❌ Issue error:', err)
+      setStep('idle')
 
-    } catch (error) {
-      console.error('❌ Issue error:', error)
-      setStep('error')
-
-      // Handle specific errors
-      if (error.message.includes('user rejected')) {
+      if (err.message.includes('user rejected')) {
         toast.error('Transaksi dibatalkan oleh user.')
-      } else if (error.message.includes('insufficient funds')) {
-        toast.error('Saldo ETH tidak cukup untuk gas fee.')
-      } else if (error.message.includes('CertificateNFT:')) {
-        // Error dari smart contract
-        const cleanError = error.message.split('CertificateNFT: ')[1] || error.message
-        toast.error(cleanError)
       } else {
-        toast.error(error.message || 'Gagal menerbitkan sertifikat.')
+        toast.error(err.message || 'Gagal menerbitkan sertifikat.')
       }
     } finally {
       setLoading(false)
     }
   }
 
-  // ============ RESET FORM ============
+  // ============ RESET ============
   const resetForm = () => {
     setCertId('')
     setStudentName('')
@@ -194,16 +151,17 @@ const Issue = () => {
 
   // ============ FORMAT FILE SIZE ============
   const formatFileSize = (bytes) => {
+    if (!bytes) return ''
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  // ============ LOADING STATE ============
+  // ============ LOADING ============
   if (roleLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <LoadingSpinner size="lg" />
+      <div className="flex justify-center py-20">
+        <div className="w-8 h-8 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
       </div>
     )
   }
@@ -220,17 +178,12 @@ const Issue = () => {
           <p className="text-slate-400">
             Hanya issuer yang terdaftar yang bisa menerbitkan sertifikat.
           </p>
-          {isConnected && (
-            <p className="text-slate-500 text-sm mt-2">
-              Wallet: {account?.slice(0, 6)}...{account?.slice(-4)}
-            </p>
-          )}
         </Card>
       </div>
     )
   }
 
-  // ============ SUCCESS STATE ============
+  // ============ SUCCESS ============
   if (step === 'success') {
     return (
       <div className="max-w-2xl mx-auto mt-10">
@@ -246,32 +199,32 @@ const Issue = () => {
           </p>
 
           {/* Detail */}
-          <div className="bg-slate-800 rounded-lg p-4 mb-6 text-left space-y-2">
+          <div className="bg-slate-800 rounded-lg p-4 mb-6 text-left space-y-2 max-w-md mx-auto">
             <div className="flex justify-between text-sm">
               <span className="text-slate-400">Certificate ID</span>
               <span className="text-slate-200 font-mono">{certId}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-400">IPFS CID</span>
-              <span className="text-slate-200 font-mono text-xs truncate max-w-[200px]">
-                {ipfsCid}
+              <span className="text-slate-200 font-mono text-xs truncate max-w-[180px]" title={ipfsCid}>
+                {ipfsCid.slice(0, 20)}...
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-400">Transaction</span>
-              <span className="text-slate-200 font-mono text-xs truncate max-w-[200px]">
+              <span className="text-slate-200 font-mono text-xs truncate max-w-[180px]" title={txHash}>
                 {txHash?.slice(0, 20)}...
               </span>
             </div>
           </div>
 
-          {/* Links */}
+          {/* Action Buttons */}
           <div className="flex gap-3 justify-center flex-wrap">
             <a
               href={`https://sepolia.etherscan.io/tx/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-secondary inline-flex items-center gap-2 text-sm"
+              className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium py-2 px-4 rounded-lg border border-slate-600 transition-all inline-flex items-center gap-2"
             >
               <ExternalLink size={16} />
               Lihat di Etherscan
@@ -280,7 +233,7 @@ const Issue = () => {
               href={getIPFSUrl(ipfsCid)}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-secondary inline-flex items-center gap-2 text-sm"
+              className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium py-2 px-4 rounded-lg border border-slate-600 transition-all inline-flex items-center gap-2"
             >
               <ExternalLink size={16} />
               Lihat di IPFS
@@ -294,10 +247,9 @@ const Issue = () => {
     )
   }
 
-  // ============ FORM ISSUE ============
+  // ============ FORM ============
   return (
     <div className="max-w-2xl mx-auto mt-4">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-slate-100">Issue Sertifikat</h1>
         <p className="text-slate-400 mt-1">
@@ -306,13 +258,7 @@ const Issue = () => {
       </div>
 
       <Card>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            handleIssue()
-          }}
-          className="space-y-1"
-        >
+        <form onSubmit={handleIssue} className="space-y-1">
           {/* Certificate ID */}
           <Input
             label="Certificate ID"
@@ -357,8 +303,7 @@ const Issue = () => {
             <label className="block text-sm text-slate-400 mb-1.5">
               File Sertifikat (PDF/PNG/JPG, max 5MB)
             </label>
-            
-            {/* Upload Area */}
+
             <label
               className={`
                 flex flex-col items-center justify-center w-full h-32
@@ -377,10 +322,13 @@ const Issue = () => {
                 type="file"
                 className="hidden"
                 accept=".pdf,.png,.jpg,.jpeg"
-                onChange={handleFileChange}
+                onChange={(e) => {
+                  setFile(e.target.files[0])
+                  setErrors(prev => ({ ...prev, file: undefined }))
+                }}
                 disabled={loading}
               />
-              
+
               {file ? (
                 <div className="flex items-center gap-3">
                   <FileText className="w-8 h-8 text-green-400" />
@@ -388,17 +336,13 @@ const Issue = () => {
                     <p className="text-sm text-slate-200 font-medium truncate max-w-[300px]">
                       {file.name}
                     </p>
-                    <p className="text-xs text-slate-400">
-                      {formatFileSize(file.size)}
-                    </p>
+                    <p className="text-xs text-slate-400">{formatFileSize(file.size)}</p>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center">
                   <Upload className="w-8 h-8 text-slate-500 mb-2" />
-                  <p className="text-sm text-slate-400">
-                    Klik untuk upload file
-                  </p>
+                  <p className="text-sm text-slate-400">Klik untuk upload file</p>
                 </div>
               )}
             </label>
@@ -407,7 +351,7 @@ const Issue = () => {
             )}
           </div>
 
-          {/* Submit Button */}
+          {/* Submit */}
           <Button
             type="submit"
             variant="primary"

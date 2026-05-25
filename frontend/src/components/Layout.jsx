@@ -11,6 +11,7 @@ const Layout = ({ children }) => {
   const navLinks = [
     { path: '/', label: 'Dashboard' },
     ...(isIssuer || isOwner ? [{ path: '/issue', label: 'Issue' }] : []),
+    ...(isIssuer || isOwner ? [{ path: '/revoke', label: 'Revoke' }] : []),
     { path: '/verify', label: 'Verify' },
     ...(isOwner ? [{ path: '/admin', label: 'Admin' }] : []),
   ]

@@ -33,44 +33,14 @@ const Home = () => {
 
       // Get total certificates
       const total = await contract.getTotalCertificates()
-      
-      // Get all certificate IDs
-      const allIds = await contract.getAllCertificateIds()
-      
-      // Get recent certificates (last 5)
-      const recentCerts = []
-      const startIdx = Math.max(0, allIds.length - 5)
-      for (let i = allIds.length - 1; i >= startIdx; i--) {
-        try {
-          const cert = await contract.getCertificate(allIds[i])
-          recentCerts.push({
-            id: ethers.decodeBytes32String(allIds[i]),
-            studentName: cert.studentName,
-            courseName: cert.courseName,
-            isValid: cert.isValid,
-            issueDate: Number(cert.issueDate),
-            issuer: cert.issuer,
-          })
-        } catch (err) {
-          console.warn('Gagal load certificate:', allIds[i])
-        }
-      }
-
-      // Get issuer's certificates (jika user adalah issuer)
-      let issuerCerts = []
-      if (isConnected && isIssuer) {
-        issuerCerts = recentCerts.filter(
-          cert => cert.issuer.toLowerCase() === account?.toLowerCase()
-        )
-      }
 
       // Get verification history from localStorage
       const history = JSON.parse(localStorage.getItem('verificationHistory') || '[]')
 
       setStats({
         totalCertificates: Number(total),
-        recentCertificates: recentCerts,
-        issuerCertificates: issuerCerts,
+        recentCertificates: [],
+        issuerCertificates: [],
         verificationHistory: history.slice(0, 5),
       })
     } catch (err) {
