@@ -77,24 +77,28 @@ npm install
 bash
 cd ../frontend
 npm install
-🔑 Environment Variables
+
+##🔑 Environment Variables
 contracts/.env
 env
 SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
 PRIVATE_KEY=your_metamask_private_key
 ETHERSCAN_API_KEY=your_etherscan_api_key
+
 backend/.env
 env
 PINATA_JWT=your_pinata_jwt_token
 PINATA_GATEWAY=gateway.pinata.cloud
 PORT=5000
+
 frontend/.env
 env
 VITE_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
 VITE_CONTRACT_ADDRESS=0x_your_contract_address
 VITE_BACKEND_URL=http://localhost:5000
 VITE_IPFS_GATEWAY=pinata
-▶️ Menjalankan Aplikasi
+
+##▶️ Menjalankan Aplikasi
 1. Deploy Smart Contract
 bash
 cd contracts
@@ -112,7 +116,7 @@ cd frontend
 npm run dev
 Buka http://localhost:5173 di browser.
 
-🌐 Deployment
+##🌐 Deployment
 Frontend (Vercel)
 bash
 cd frontend
@@ -124,13 +128,15 @@ cd backend
 railway login
 railway init
 railway up
-🧪 Testing
+
+##🧪 Testing
 Smart Contract Unit Test
 bash
 cd contracts
 npx hardhat test
 Test dengan Local Hardhat Node
 bash
+
 # Terminal 1
 npx hardhat node
 
@@ -141,7 +147,8 @@ Role	Address	Bisa Issue?	Bisa Admin?
 Owner	Deployer	✅	✅
 Issuer	Ditambahkan owner	✅	❌
 Non-Issuer	Address biasa	❌	❌
-Test Verifikasi
+
+## Test Verifikasi
 Buka halaman Verify
 
 Masukkan Certificate ID (contoh: CERT-2025-001)
@@ -150,7 +157,7 @@ Klik Verify
 
 Hasil akan muncul GRATIS tanpa MetaMask popup
 
-📁 Struktur Project
+##📁 Struktur Project
 text
 certificate-dapp/
 ├── contracts/                # Smart Contract (Hardhat)
