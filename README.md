@@ -76,29 +76,29 @@ npm install
 4. Install Frontend Dependencies
 bash
 cd ../frontend
-npm install
+npm install```
 
 ##🔑 Environment Variables
-contracts/.env
+```contracts/.env
 env
 SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
 PRIVATE_KEY=your_metamask_private_key
-ETHERSCAN_API_KEY=your_etherscan_api_key
+ETHERSCAN_API_KEY=your_etherscan_api_key```
 
-backend/.env
+```backend/.env
 env
 PINATA_JWT=your_pinata_jwt_token
 PINATA_GATEWAY=gateway.pinata.cloud
-PORT=5000
+PORT=5000```
 
-frontend/.env
+```frontend/.env
 env
 VITE_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
 VITE_CONTRACT_ADDRESS=0x_your_contract_address
 VITE_BACKEND_URL=http://localhost:5000
-VITE_IPFS_GATEWAY=pinata
+VITE_IPFS_GATEWAY=pinata```
 
-##▶️ Menjalankan Aplikasi
+```##▶️ Menjalankan Aplikasi
 1. Deploy Smart Contract
 bash
 cd contracts
@@ -114,9 +114,9 @@ npm run dev
 bash
 cd frontend
 npm run dev
-Buka http://localhost:5173 di browser.
+Buka http://localhost:5173 di browser.```
 
-##🌐 Deployment
+```##🌐 Deployment
 Frontend (Vercel)
 bash
 cd frontend
@@ -127,9 +127,9 @@ bash
 cd backend
 railway login
 railway init
-railway up
+railway up```
 
-##🧪 Testing
+```##🧪 Testing
 Smart Contract Unit Test
 bash
 cd contracts
@@ -146,18 +146,18 @@ Test Role Detection
 Role	Address	Bisa Issue?	Bisa Admin?
 Owner	Deployer	✅	✅
 Issuer	Ditambahkan owner	✅	❌
-Non-Issuer	Address biasa	❌	❌
+Non-Issuer	Address biasa	❌	❌```
 
-## Test Verifikasi
+```## Test Verifikasi
 Buka halaman Verify
 
 Masukkan Certificate ID (contoh: CERT-2025-001)
 
 Klik Verify
 
-Hasil akan muncul GRATIS tanpa MetaMask popup
+Hasil akan muncul GRATIS tanpa MetaMask popup```
 
-##📁 Struktur Project
+```##📁 Struktur Project
 text
 certificate-dapp/
 ├── contracts/                # Smart Contract (Hardhat)
@@ -178,4 +178,4 @@ certificate-dapp/
 │   │   ├── hooks/
 │   │   └── utils/
 │   └── package.json
-└── README.md
+└── README.md```
